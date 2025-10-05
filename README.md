@@ -20,8 +20,8 @@ Aplicación móvil desarrollada con **React Native y Expo** que permite a usuari
 ## Instalación
 
 ```bash
-git clone https://github.com/tu-usuario/soil-contamination-app.git
-cd soil-contamination-app
+git clone https://github.com/ReynoTD/suelo-app
+cd suelo-app
 npm install
 npx expo start
 ```
