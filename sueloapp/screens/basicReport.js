@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import * as Location from 'expo-location';
 import {
   View,
   Text,
@@ -50,7 +51,7 @@ const ReporteBasicoForm = () => {
   const [fechaHoraTexto, setFechaHoraTexto] = useState(formatDateTime(new Date()));
   
   // 1. Estados para todos los campos del formulario
-  const [usuario, setUsuario] = useState('Usuario Predeterminado');
+  const [usuario, setUsuario] = useState('Usuario General');
   const [colorSuelo, setColorSuelo] = useState('');
   const [olorDetectado, setOlorDetectado] = useState('');
   const [texturaSuelo, setTexturaSuelo] = useState('');
@@ -62,6 +63,47 @@ const ReporteBasicoForm = () => {
 
   // Estados de UI
   const [isRiskModalVisible, setIsRiskModalVisible] = useState(false);
+  // --- NUEVO: Estados para Geolocalización ---
+  const [location, setLocation] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [address, setAddress] = useState(null);
+  // Efecto para obtener ubicación al iniciar ---
+ useEffect(() => {
+    (async () => {
+      setLoadingLocation(true);
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setErrorMsg('Permiso denegado. No se puede obtener ubicación.');
+        setLoadingLocation(false);
+        return;
+      }
+
+      try {
+        // 1. Obtener coordenadas
+        let currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation(currentLocation);
+
+        // 2. Obtener nombre del lugar (Geocodificación Inversa) -- NUEVO --
+        let reverseGeocode = await Location.reverseGeocodeAsync({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude
+        });
+
+        if (reverseGeocode.length > 0) {
+          const place = reverseGeocode[0];
+          // Formateamos la dirección bonita
+          const formattedAddress = `${place.street || ''} ${place.streetNumber || ''}, ${place.city || ''}, ${place.region || ''}`;
+          setAddress(formattedAddress);
+        }
+
+      } catch (error) {
+        setErrorMsg('Error al obtener ubicación.');
+      } finally {
+        setLoadingLocation(false);
+      }
+    })();
+  }, []);
   
   // Función de simulación de guardado
   const handleGuardarReporte = () => {
@@ -73,6 +115,11 @@ const ReporteBasicoForm = () => {
     const reporte = {
       usuario,
       fechaHoraReporte: fechaReporteISO,
+      // --- NUEVO: Agregamos la ubicación al reporte ---
+      ubicacion: location ? {
+        latitud: location.coords.latitude,
+        longitud: location.coords.longitude
+      } : 'No disponible',
       colorSuelo,
       olorDetectado,
       texturaSuelo,
@@ -117,7 +164,7 @@ const ReporteBasicoForm = () => {
 
           {/* 2. Fecha y hora del reporte (por defecto actual y editable) */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Fecha y hora del reporte (Editable)</Text>
+            <Text style={styles.label}>Fecha y hora del reporte </Text>
             <TextInput
               style={styles.input}
               value={fechaHoraTexto}
@@ -126,6 +173,34 @@ const ReporteBasicoForm = () => {
               keyboardType={Platform.OS === 'ios' ? 'default' : 'datetime'} 
             />
           </View>
+          {/* === PEGA ESTO NUEVO === */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Ubicación Automática</Text>
+            <View style={styles.locationBox}>
+              {loadingLocation ? (
+                <Text style={styles.infoText}>📡 Buscando ubicación...</Text>
+              ) : errorMsg ? (
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              ) : location ? (
+                <View style={{alignItems: 'center', width: '100%'}}>
+                  
+                  {/* 1. DIRECCIÓN (Calle, Ciudad) */}
+                  <Text style={styles.addressText}>
+                    {address || "Ubicación detectada"}
+                  </Text>
+                  
+                  {/* 2. COORDENADAS */}
+                  <Text style={styles.coordsText}>
+                    Lat: {location.coords.latitude.toFixed(5)} | Lon: {location.coords.longitude.toFixed(5)}
+                  </Text>
+
+                </View>
+              ) : (
+                <Text style={styles.infoText}>Ubicación no disponible</Text>
+              )}
+            </View>
+          </View>
+          {/* ======================= */}
 
           {/* 3. Color del suelo */}
           <CustomInput
@@ -435,6 +510,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#f44336', // Rojo para cerrar
     width: '100%',
     marginTop: 15,
-  }
+  },
+  // --- ESTILOS DE UBICACIÓN (NUEVO) ---
+  locationBox: {
+    backgroundColor: '#e8f5e9', // Fondo verde muy suave
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#c8e6c9',
+    alignItems: 'center', 
+    marginBottom: 15, // Espacio debajo
+  },
+  locationText: {
+    fontSize: 16,
+    color: '#2e7d32', // Verde oscuro
+    fontWeight: 'bold',
+    marginVertical: 2,
+  },
+  errorText: {
+    color: '#d32f2f', // Rojo error
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  infoText: {
+    color: '#555',
+    fontStyle: 'italic',
+  },
 });
 export default ReporteBasicoForm;
