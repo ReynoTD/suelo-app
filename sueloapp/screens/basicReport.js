@@ -4,12 +4,12 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Platform,
   Modal,
   Pressable,
+  Alert,
 } from "react-native";
 
 // Constantes y datos para la lista de riesgo
@@ -50,7 +50,7 @@ const CustomInput = ({
   </View>
 );
 
-const ReporteBasicoForm = () => {
+const ReporteBasicoForm = ({ navigation }) => {
   // Inicializamos el texto del input con la hora actual formateada
   const [fechaHoraTexto, setFechaHoraTexto] = useState(
     formatDateTime(new Date())
@@ -92,29 +92,23 @@ const ReporteBasicoForm = () => {
       estadoSincronizacion,
     };
     console.log("--- Reporte Guardado ---", reporte);
-    // Usamos alert para notificar al usuario
-    alert("Reporte guardado con éxito (Revisa la consola para ver los datos).");
+    Alert.alert(
+      "Reporte Guardado",
+      "El reporte básico ha sido guardado exitosamente."
+    );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Encabezado Superior (similar a la imagen) */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} accessibilityLabel="Volver">
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>SS</Text>
-        </View>
-        <Text style={styles.headerTitle}>Suelo Sano</Text>
-      </View>
-
-      <ScrollView style={styles.content}>
+    <ScrollView style={styles.container}>
+      <View style={styles.content}>
         {/* Título de la Sección */}
-        <Text style={styles.sectionTitle}>Reporte Básico</Text>
-        {/* Tarjeta del Formulario */}
-        <View style={styles.formCard}>
-          <Text style={styles.cardTitle}>Información del Reporte</Text>
+        <Text style={styles.mainTitle}>Reporte Básico</Text>
+        <Text style={styles.subtitle}>
+          Registro rápido de contaminación de suelos
+        </Text>
+        {/* Sección del Formulario */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Información del Reporte</Text>
 
           {/* 1. Usuario */}
           <CustomInput
@@ -236,15 +230,21 @@ const ReporteBasicoForm = () => {
 
           {/* Botón Guardar Reporte */}
           <TouchableOpacity
-            style={styles.saveButton}
+            style={styles.buttonPrimary}
             onPress={handleGuardarReporte}
           >
-            <Text style={styles.saveButtonText}>💾 Guardar Reporte</Text>
+            <Text style={styles.buttonText}>Guardar Reporte</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.buttonSecondary}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.buttonSecondaryText}>Cancelar</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ height: 50 }} /> {/* Espacio al final */}
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </ScrollView>
   );
 };
 
@@ -252,158 +252,107 @@ const ReporteBasicoForm = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5", // Fondo general claro
+    backgroundColor: "#f5f5f5",
   },
-  // --- Estilos del Encabezado (Header) ---
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#388e3c", // Verde oscuro
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  backButton: {
-    paddingRight: 10,
-  },
-  backButtonText: {
-    fontSize: 24,
-    color: "#fff",
-    fontWeight: "bold",
-  },
-  logoContainer: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-  },
-  logoText: {
-    color: "#388e3c",
-    fontWeight: "900",
-    fontSize: 16,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  // --- Estilos del Contenido y Formulario ---
   content: {
-    flex: 1,
-    paddingHorizontal: 16,
+    padding: 20,
+    paddingBottom: 40,
   },
-  sectionTitle: {
-    fontSize: 22,
+  mainTitle: {
+    fontSize: 28,
     fontWeight: "bold",
     color: "#333",
-    marginVertical: 15,
+    marginBottom: 8,
   },
-  formCard: {
+  subtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 24,
+  },
+  section: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  cardTitle: {
-    fontSize: 18,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: "600",
-    color: "#388e3c",
-    marginBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    paddingBottom: 8,
+    color: "#2d7a2e",
+    marginBottom: 16,
   },
-  // --- Estilos de Inputs ---
   inputGroup: {
     marginBottom: 15,
   },
   label: {
     fontSize: 14,
-    color: "#555",
     fontWeight: "600",
-    marginBottom: 5,
+    color: "#333",
+    marginBottom: 8,
+    marginTop: 12,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
+    backgroundColor: "#f5f5f5",
     borderRadius: 8,
-    padding: 10,
-    fontSize: 16,
-    backgroundColor: "#fff",
+    padding: 12,
+    fontSize: 14,
+    color: "#333",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   multilineInput: {
     height: 100,
     textAlignVertical: "top",
-    padding: 10,
   },
-  // --- Estilos del Botón de Guardar ---
-  saveButton: {
-    backgroundColor: "#4caf50", // Verde vibrante
-    padding: 15,
-    borderRadius: 10,
+  buttonPrimary: {
+    backgroundColor: "#2d7a2e",
+    borderRadius: 8,
+    padding: 16,
     alignItems: "center",
-    marginTop: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
+    marginTop: 8,
   },
-  saveButtonText: {
+  buttonText: {
     color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "600",
   },
-  // --- Estilos para el Selector de Riesgo (Simulación con Modal) ---
+  buttonSecondary: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: "#2d7a2e",
+  },
+  buttonSecondaryText: {
+    color: "#2d7a2e",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   pickerDisplay: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ccc",
+    backgroundColor: "#f5f5f5",
     borderRadius: 8,
-    padding: 10,
-    backgroundColor: "#fff",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   pickerText: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#333",
   },
   pickerIcon: {
     fontSize: 12,
-    color: "#888",
+    color: "#666",
   },
-  // Modal Styles
   centeredView: {
     flex: 1,
     justifyContent: "center",
@@ -427,6 +376,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 15,
+    color: "#333",
   },
   modalOption: {
     width: "100%",
@@ -436,7 +386,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   lastModalOption: {
-    borderBottomWidth: 0, // Elimina la línea divisoria del último elemento
+    borderBottomWidth: 0,
     marginBottom: 10,
   },
   modalOptionText: {
@@ -444,7 +394,7 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   closeModalButton: {
-    backgroundColor: "#f44336", // Rojo para cerrar
+    backgroundColor: "#d32f2f",
     width: "100%",
     marginTop: 15,
   },

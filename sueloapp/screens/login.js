@@ -10,17 +10,83 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { CommonActions } from "@react-navigation/native";
+import { loginUser } from "../services/authService";
+import { getDemoUsersList } from "../services/initDemoData";
 
 export default function Login({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showDemoAccounts, setShowDemoAccounts] = useState(false);
 
-  const handleLogin = () => {
-    console.log("Login con:", email, password);
-    // Aquí puedes agregar tu lógica de autenticación
+  const demoUsers = getDemoUsersList();
+
+  const handleLogin = async () => {
+    // Validaciones básicas
+    if (!email.trim() || !password) {
+      Alert.alert("Error", "Por favor ingresa tu correo y contraseña");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const result = await loginUser(email.trim().toLowerCase(), password);
+
+      setLoading(false);
+
+      if (result.success) {
+        // Resetear la navegación y dirigir a la app principal
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: "MainApp" }],
+          })
+        );
+      } else {
+        Alert.alert("Error", result.message);
+      }
+    } catch (error) {
+      setLoading(false);
+      Alert.alert("Error", "Ocurrió un error al iniciar sesión");
+      console.error("Error en login:", error);
+    }
+  };
+
+  const handleDemoLogin = async (demoEmail, demoPassword) => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setShowDemoAccounts(false);
+
+    // Hacer login automáticamente
+    setTimeout(async () => {
+      setLoading(true);
+      try {
+        const result = await loginUser(demoEmail, demoPassword);
+        setLoading(false);
+
+        if (result.success) {
+          // Resetear la navegación y dirigir a la app principal
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: "MainApp" }],
+            })
+          );
+        } else {
+          Alert.alert("Error", result.message);
+        }
+      } catch (error) {
+        setLoading(false);
+        Alert.alert("Error", "Ocurrió un error al iniciar sesión");
+      }
+    }, 300);
   };
 
   return (
@@ -116,8 +182,16 @@ export default function Login({ navigation }) {
             </TouchableOpacity>
 
             {/* Botón de Login */}
-            <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-              <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
+              )}
             </TouchableOpacity>
 
             {/* Divider */}
@@ -130,10 +204,53 @@ export default function Login({ navigation }) {
             {/* Botón de Registro */}
             <TouchableOpacity
               style={styles.registerButton}
-              onPress={() => console.log("Ir a registro")}
+              onPress={() => navigation.navigate("Register")}
             >
               <Text style={styles.registerButtonText}>Crear Cuenta Nueva</Text>
             </TouchableOpacity>
+
+            {/* Botón para mostrar cuentas demo */}
+            <TouchableOpacity
+              style={styles.demoButton}
+              onPress={() => setShowDemoAccounts(!showDemoAccounts)}
+            >
+              <Ionicons
+                name={showDemoAccounts ? "chevron-up" : "chevron-down"}
+                size={16}
+                color="#2d7a2e"
+              />
+              <Text style={styles.demoButtonText}>
+                {showDemoAccounts ? "Ocultar" : "Ver"} Cuentas de Prueba
+              </Text>
+            </TouchableOpacity>
+
+            {/* Lista de cuentas demo */}
+            {showDemoAccounts && (
+              <View style={styles.demoAccountsContainer}>
+                <Text style={styles.demoAccountsTitle}>
+                  Cuentas de Prueba Disponibles
+                </Text>
+                {demoUsers.map((user, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.demoAccountItem}
+                    onPress={() => handleDemoLogin(user.email, user.password)}
+                  >
+                    <View style={styles.demoAccountInfo}>
+                      <Ionicons name="person-circle" size={32} color="#2d7a2e" />
+                      <View style={styles.demoAccountText}>
+                        <Text style={styles.demoAccountName}>{user.name}</Text>
+                        <Text style={styles.demoAccountEmail}>{user.email}</Text>
+                        <Text style={styles.demoAccountPassword}>
+                          Contraseña: {user.password}
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons name="arrow-forward" size={20} color="#2d7a2e" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Footer */}
             <View style={styles.footer}>
@@ -313,5 +430,69 @@ const styles = StyleSheet.create({
   footerLink: {
     color: "#2d7a2e",
     fontWeight: "600",
+  },
+  demoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    marginTop: 16,
+    gap: 6,
+  },
+  demoButtonText: {
+    color: "#2d7a2e",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  demoAccountsContainer: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  demoAccountsTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  demoAccountItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  demoAccountInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  demoAccountText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  demoAccountName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 2,
+  },
+  demoAccountEmail: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
+  },
+  demoAccountPassword: {
+    fontSize: 11,
+    color: "#999",
+    fontStyle: "italic",
   },
 });

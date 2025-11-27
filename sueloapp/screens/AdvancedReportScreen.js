@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -7,8 +7,11 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function AdvancedReportScreen({ navigation }) {
   // A. Identificación del Sitio y Datos Generales
@@ -19,6 +22,8 @@ export default function AdvancedReportScreen({ navigation }) {
     inspectionDate: "",
     inspector: "",
   });
+
+  const [loadingLocation, setLoadingLocation] = useState(false);
 
   // B. Observación y Características del Contaminante
   const [contaminantData, setContaminantData] = useState({
@@ -41,6 +46,57 @@ export default function AdvancedReportScreen({ navigation }) {
   const [riskIndex, setRiskIndex] = useState(0);
   const [riskLevel, setRiskLevel] = useState("");
   const [riskFactors, setRiskFactors] = useState([]);
+
+  // Función para obtener la ubicación actual
+  const getCurrentLocation = async () => {
+    try {
+      setLoadingLocation(true);
+
+      // Solicitar permisos de ubicación
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Permiso Denegado",
+          "Se necesita permiso de ubicación para obtener las coordenadas GPS."
+        );
+        setLoadingLocation(false);
+        return;
+      }
+
+      // Obtener la ubicación actual
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const { latitude, longitude } = location.coords;
+      const coordinates = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+      // Actualizar el estado con las coordenadas
+      setSiteData({
+        ...siteData,
+        coordinates: coordinates,
+      });
+
+      Alert.alert(
+        "Ubicación Obtenida",
+        `Coordenadas: ${coordinates}`
+      );
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        "No se pudo obtener la ubicación. Verifica que el GPS esté activado."
+      );
+      console.error("Error obteniendo ubicación:", error);
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
+
+  // Obtener ubicación automáticamente al cargar la pantalla
+  useEffect(() => {
+    getCurrentLocation();
+  }, []);
 
   const calculateRiskIndex = () => {
     // Validar que se hayan completado los campos críticos
@@ -138,6 +194,88 @@ export default function AdvancedReportScreen({ navigation }) {
       nearWaterBodies: null,
     });
     setShowResults(false);
+  };
+
+  const saveReport = async () => {
+    try {
+      // Crear el objeto del reporte con todos los datos
+      const report = {
+        id: Date.now().toString(), // ID único basado en timestamp
+        type: "advanced", // Tipo de reporte
+        createdAt: new Date().toISOString(), // Fecha de creación
+        synced: false, // Indica si el reporte ha sido sincronizado con el servidor
+
+        // Datos del sitio
+        siteData: {
+          siteName: siteData.siteName,
+          location: siteData.location,
+          coordinates: siteData.coordinates,
+          inspectionDate: siteData.inspectionDate,
+          inspector: siteData.inspector,
+        },
+
+        // Datos del contaminante
+        contaminantData: {
+          odor: contaminantData.odor,
+          coloration: contaminantData.coloration,
+          freePhase: contaminantData.freePhase,
+          affectedArea: contaminantData.affectedArea,
+          depth: contaminantData.depth,
+        },
+
+        // Datos del entorno
+        environmentData: {
+          landUse: environmentData.landUse,
+          waterTableDepth: environmentData.waterTableDepth,
+          soilType: environmentData.soilType,
+          nearWaterBodies: environmentData.nearWaterBodies,
+        },
+
+        // Resultados de la evaluación
+        results: {
+          riskIndex: riskIndex,
+          riskLevel: riskLevel,
+          riskFactors: riskFactors,
+        },
+      };
+
+      // Obtener reportes existentes
+      const existingReportsJson = await AsyncStorage.getItem("advancedReports");
+      const existingReports = existingReportsJson
+        ? JSON.parse(existingReportsJson)
+        : [];
+
+      // Agregar el nuevo reporte
+      existingReports.push(report);
+
+      // Guardar en AsyncStorage
+      await AsyncStorage.setItem(
+        "advancedReports",
+        JSON.stringify(existingReports)
+      );
+
+      console.log("Reporte guardado exitosamente:", report);
+
+      Alert.alert(
+        "Reporte Guardado",
+        "El reporte avanzado ha sido guardado exitosamente en el dispositivo.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              resetForm();
+              navigation.goBack();
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error guardando el reporte:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo guardar el reporte. Por favor intenta de nuevo."
+      );
+    }
   };
 
   if (showResults) {
@@ -249,13 +387,7 @@ export default function AdvancedReportScreen({ navigation }) {
           {/* Botones */}
           <TouchableOpacity
             style={styles.buttonPrimary}
-            onPress={() => {
-              Alert.alert(
-                "Reporte Guardado",
-                "El reporte avanzado ha sido guardado exitosamente."
-              );
-              resetForm();
-            }}
+            onPress={saveReport}
           >
             <Text style={styles.buttonText}>Guardar Reporte</Text>
           </TouchableOpacity>
@@ -303,14 +435,28 @@ export default function AdvancedReportScreen({ navigation }) {
           />
 
           <Text style={styles.label}>Coordenadas GPS</Text>
-          <TextInput
-            style={styles.input}
-            value={siteData.coordinates}
-            onChangeText={(text) =>
-              setSiteData({ ...siteData, coordinates: text })
-            }
-            placeholder="Lat, Long"
-          />
+          <View style={styles.coordinatesContainer}>
+            <TextInput
+              style={[styles.input, styles.coordinatesInput]}
+              value={siteData.coordinates}
+              onChangeText={(text) =>
+                setSiteData({ ...siteData, coordinates: text })
+              }
+              placeholder="Lat, Long"
+              editable={!loadingLocation}
+            />
+            <TouchableOpacity
+              style={styles.locationButton}
+              onPress={getCurrentLocation}
+              disabled={loadingLocation}
+            >
+              {loadingLocation ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="location" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.label}>Fecha de Inspección</Text>
           <TextInput
@@ -771,6 +917,23 @@ const styles = StyleSheet.create({
     color: "#333",
     borderWidth: 1,
     borderColor: "#e0e0e0",
+  },
+  coordinatesContainer: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  coordinatesInput: {
+    flex: 1,
+  },
+  locationButton: {
+    backgroundColor: "#2d7a2e",
+    borderRadius: 8,
+    padding: 12,
+    width: 48,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
   },
   optionsContainer: {
     flexDirection: "row",

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -7,8 +7,33 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { getReportStats } from "../services/reportService";
+import { useFocusEffect } from "@react-navigation/native";
 
 export default function HomeScreen({ navigation }) {
+  const [stats, setStats] = useState({
+    thisMonth: 0,
+    total: 0,
+  });
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  // Recargar estadísticas cuando la pantalla gana foco
+  useFocusEffect(
+    React.useCallback(() => {
+      loadStats();
+    }, [])
+  );
+
+  const loadStats = async () => {
+    const reportStats = await getReportStats();
+    setStats({
+      thisMonth: reportStats.thisMonth,
+      total: reportStats.total,
+    });
+  };
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
@@ -36,7 +61,7 @@ export default function HomeScreen({ navigation }) {
           </View>
           <TouchableOpacity
             style={styles.buttonPrimary}
-            onPress={() => console.log("Crear Reporte Básico")}
+            onPress={() => navigation.navigate("BasicReport")}
           >
             <Text style={styles.buttonPrimaryText}>+ Crear Reporte Básico</Text>
           </TouchableOpacity>
@@ -68,12 +93,12 @@ export default function HomeScreen({ navigation }) {
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>12</Text>
+            <Text style={styles.statNumber}>{stats.thisMonth}</Text>
             <Text style={styles.statLabel}>Reportes Este Mes</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>3</Text>
-            <Text style={styles.statLabel}>Pendientes</Text>
+            <Text style={styles.statNumber}>{stats.total}</Text>
+            <Text style={styles.statLabel}>Total Reportes</Text>
           </View>
         </View>
       </View>
