@@ -1,7 +1,20 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const AUTH_KEY = "userAuth";
-const USERS_KEY = "registeredUsers";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword
+} from 'firebase/auth';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  serverTimestamp
+} from 'firebase/firestore';
+import { auth, db } from '../config/firebaseConfig';
 
 // Registrar un nuevo usuario
 export const registerUser = async (userData) => {
@@ -23,50 +36,52 @@ export const registerUser = async (userData) => {
       };
     }
 
-    // Verificar si el email ya está registrado
-    const existingUsers = await getRegisteredUsers();
-    const userExists = existingUsers.some((user) => user.email === email);
+    // Crear usuario en Firebase Authentication
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
 
-    if (userExists) {
-      return {
-        success: false,
-        message: "Este correo electrónico ya está registrado",
-      };
-    }
+    const user = userCredential.user;
 
-    // Crear nuevo usuario
-    const newUser = {
-      id: Date.now().toString(),
+    // Guardar datos adicionales en Firestore
+    await setDoc(doc(db, 'users', user.uid), {
       name,
       email,
-      password, // En producción, esto debería estar hasheado
       phone: userData.phone || "",
       profession: userData.profession || "",
       organization: userData.organization || "",
-      createdAt: new Date().toISOString(),
-    };
-
-    // Guardar usuario
-    existingUsers.push(newUser);
-    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(existingUsers));
+      createdAt: serverTimestamp(),
+    });
 
     return {
       success: true,
       message: "Usuario registrado exitosamente",
       user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        phone: newUser.phone,
-        profession: newUser.profession,
-        organization: newUser.organization,
+        id: user.uid,
+        name,
+        email,
+        phone: userData.phone || "",
+        profession: userData.profession || "",
+        organization: userData.organization || "",
       },
     };
   } catch (error) {
     console.error("Error registrando usuario:", error);
+
+    let message = "Error al registrar usuario";
+    if (error.code === 'auth/email-already-in-use') {
+      message = "Este correo electrónico ya está registrado";
+    } else if (error.code === 'auth/invalid-email') {
+      message = "Correo electrónico inválido";
+    } else if (error.code === 'auth/weak-password') {
+      message = "La contraseña es muy débil";
+    }
+
     return {
       success: false,
-      message: "Error al registrar usuario",
+      message,
     };
   }
 };
@@ -81,44 +96,54 @@ export const loginUser = async (email, password) => {
       };
     }
 
-    // Obtener usuarios registrados
-    const users = await getRegisteredUsers();
-
-    // Buscar usuario
-    const user = users.find(
-      (u) => u.email === email && u.password === password
+    // Autenticar con Firebase Authentication
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
     );
 
-    if (!user) {
+    const user = userCredential.user;
+
+    // Obtener datos adicionales de Firestore
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+
+    if (!userDoc.exists()) {
       return {
         success: false,
-        message: "Email o contraseña incorrectos",
+        message: "Datos de usuario no encontrados",
       };
     }
 
-    // Guardar sesión
-    const session = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone || "",
-      profession: user.profession || "",
-      organization: user.organization || "",
-      loginAt: new Date().toISOString(),
-    };
-
-    await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(session));
+    const userData = userDoc.data();
 
     return {
       success: true,
       message: "Inicio de sesión exitoso",
-      user: session,
+      user: {
+        id: user.uid,
+        name: userData.name,
+        email: user.email,
+        phone: userData.phone || "",
+        profession: userData.profession || "",
+        organization: userData.organization || "",
+      },
     };
   } catch (error) {
     console.error("Error iniciando sesión:", error);
+
+    let message = "Error al iniciar sesión";
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+      message = "Email o contraseña incorrectos";
+    } else if (error.code === 'auth/invalid-email') {
+      message = "Correo electrónico inválido";
+    } else if (error.code === 'auth/too-many-requests') {
+      message = "Demasiados intentos fallidos. Intenta más tarde";
+    }
+
     return {
       success: false,
-      message: "Error al iniciar sesión",
+      message,
     };
   }
 };
@@ -126,7 +151,7 @@ export const loginUser = async (email, password) => {
 // Cerrar sesión
 export const logoutUser = async () => {
   try {
-    await AsyncStorage.removeItem(AUTH_KEY);
+    await signOut(auth);
     return {
       success: true,
       message: "Sesión cerrada exitosamente",
@@ -141,65 +166,49 @@ export const logoutUser = async () => {
 };
 
 // Verificar si hay sesión activa
-export const getCurrentUser = async () => {
-  try {
-    const sessionJson = await AsyncStorage.getItem(AUTH_KEY);
-    if (sessionJson) {
-      return JSON.parse(sessionJson);
-    }
-    return null;
-  } catch (error) {
-    console.error("Error obteniendo usuario actual:", error);
-    return null;
-  }
-};
+export const getCurrentUser = () => {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      unsubscribe();
 
-// Obtener todos los usuarios registrados
-const getRegisteredUsers = async () => {
-  try {
-    const usersJson = await AsyncStorage.getItem(USERS_KEY);
-    return usersJson ? JSON.parse(usersJson) : [];
-  } catch (error) {
-    console.error("Error obteniendo usuarios:", error);
-    return [];
-  }
+      if (user) {
+        // Obtener datos adicionales de Firestore
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            resolve({
+              id: user.uid,
+              name: userData.name,
+              email: user.email,
+              phone: userData.phone || "",
+              profession: userData.profession || "",
+              organization: userData.organization || "",
+            });
+          } else {
+            resolve(null);
+          }
+        } catch (error) {
+          console.error("Error obteniendo datos de usuario:", error);
+          resolve(null);
+        }
+      } else {
+        resolve(null);
+      }
+    });
+  });
 };
 
 // Actualizar perfil de usuario
 export const updateUserProfile = async (userId, updates) => {
   try {
-    const users = await getRegisteredUsers();
-    const userIndex = users.findIndex((u) => u.id === userId);
+    const userRef = doc(db, 'users', userId);
 
-    if (userIndex === -1) {
-      return {
-        success: false,
-        message: "Usuario no encontrado",
-      };
-    }
-
-    // Actualizar usuario
-    users[userIndex] = {
-      ...users[userIndex],
+    // Actualizar en Firestore
+    await updateDoc(userRef, {
       ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
-
-    // Actualizar sesión si está activa
-    const currentUser = await getCurrentUser();
-    if (currentUser && currentUser.id === userId) {
-      const updatedSession = {
-        ...currentUser,
-        name: updates.name || currentUser.name,
-        email: updates.email || currentUser.email,
-        phone: updates.phone !== undefined ? updates.phone : currentUser.phone,
-        profession: updates.profession !== undefined ? updates.profession : currentUser.profession,
-        organization: updates.organization !== undefined ? updates.organization : currentUser.organization,
-      };
-      await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedSession));
-    }
+      updatedAt: serverTimestamp(),
+    });
 
     return {
       success: true,
@@ -207,30 +216,28 @@ export const updateUserProfile = async (userId, updates) => {
     };
   } catch (error) {
     console.error("Error actualizando perfil:", error);
+
+    let message = "Error al actualizar perfil";
+    if (error.code === 'not-found') {
+      message = "Usuario no encontrado";
+    }
+
     return {
       success: false,
-      message: "Error al actualizar perfil",
+      message,
     };
   }
 };
 
 // Cambiar contraseña
-export const changePassword = async (userId, currentPassword, newPassword) => {
+export const changePassword = async (currentPassword, newPassword) => {
   try {
-    const users = await getRegisteredUsers();
-    const user = users.find((u) => u.id === userId);
+    const user = auth.currentUser;
 
     if (!user) {
       return {
         success: false,
-        message: "Usuario no encontrado",
-      };
-    }
-
-    if (user.password !== currentPassword) {
-      return {
-        success: false,
-        message: "La contraseña actual es incorrecta",
+        message: "Usuario no autenticado",
       };
     }
 
@@ -241,10 +248,23 @@ export const changePassword = async (userId, currentPassword, newPassword) => {
       };
     }
 
+    // Re-autenticar al usuario con la contraseña actual
+    const credential = EmailAuthProvider.credential(
+      user.email,
+      currentPassword
+    );
+
+    try {
+      await reauthenticateWithCredential(user, credential);
+    } catch (error) {
+      return {
+        success: false,
+        message: "La contraseña actual es incorrecta",
+      };
+    }
+
     // Actualizar contraseña
-    const userIndex = users.findIndex((u) => u.id === userId);
-    users[userIndex].password = newPassword;
-    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+    await updatePassword(user, newPassword);
 
     return {
       success: true,

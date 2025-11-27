@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { CommonActions } from "@react-navigation/native";
 import { loginUser } from "../services/authService";
 import { getDemoUsersList } from "../services/initDemoData";
 
@@ -42,13 +41,8 @@ export default function Login({ navigation }) {
       setLoading(false);
 
       if (result.success) {
-        // Resetear la navegación y dirigir a la app principal
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: "MainApp" }],
-          })
-        );
+        // Firebase detectará automáticamente el login y cambiará la pantalla
+        // No es necesario navegar manualmente
       } else {
         Alert.alert("Error", result.message);
       }
@@ -72,13 +66,8 @@ export default function Login({ navigation }) {
         setLoading(false);
 
         if (result.success) {
-          // Resetear la navegación y dirigir a la app principal
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: "MainApp" }],
-            })
-          );
+          // Firebase detectará automáticamente el login y cambiará la pantalla
+          // No es necesario navegar manualmente
         } else {
           Alert.alert("Error", result.message);
         }
@@ -237,10 +226,16 @@ export default function Login({ navigation }) {
                     onPress={() => handleDemoLogin(user.email, user.password)}
                   >
                     <View style={styles.demoAccountInfo}>
-                      <Ionicons name="person-circle" size={32} color="#2d7a2e" />
+                      <Ionicons
+                        name="person-circle"
+                        size={32}
+                        color="#2d7a2e"
+                      />
                       <View style={styles.demoAccountText}>
                         <Text style={styles.demoAccountName}>{user.name}</Text>
-                        <Text style={styles.demoAccountEmail}>{user.email}</Text>
+                        <Text style={styles.demoAccountEmail}>
+                          {user.email}
+                        </Text>
                         <Text style={styles.demoAccountPassword}>
                           Contraseña: {user.password}
                         </Text>

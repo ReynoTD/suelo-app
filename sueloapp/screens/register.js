@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { registerUser } from "../services/authService";
+import { registerUser, loginUser } from "../services/authService";
 
 export default function Register({ navigation }) {
   const [name, setName] = useState("");
@@ -58,20 +58,33 @@ export default function Register({ navigation }) {
         password,
       });
 
-      setLoading(false);
-
       if (result.success) {
-        Alert.alert(
-          "Registro Exitoso",
-          "Tu cuenta ha sido creada. Por favor inicia sesión.",
-          [
-            {
-              text: "OK",
-              onPress: () => navigation.navigate("Login"),
-            },
-          ]
-        );
+        // Iniciar sesión automáticamente después del registro
+        const loginResult = await loginUser(email.trim().toLowerCase(), password);
+
+        setLoading(false);
+
+        if (loginResult.success) {
+          // Firebase detectará automáticamente el login y cambiará la pantalla
+          Alert.alert(
+            "Registro Exitoso",
+            "Bienvenido a Suelo Sano! Tu cuenta ha sido creada."
+          );
+        } else {
+          // Si falla el login automático, redirigir a la pantalla de login
+          Alert.alert(
+            "Registro Exitoso",
+            "Tu cuenta ha sido creada. Por favor inicia sesión.",
+            [
+              {
+                text: "OK",
+                onPress: () => navigation.navigate("Login"),
+              },
+            ]
+          );
+        }
       } else {
+        setLoading(false);
         Alert.alert("Error", result.message);
       }
     } catch (error) {

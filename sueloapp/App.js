@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, StatusBar, ActivityIndicator } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  StatusBar,
+  ActivityIndicator,
+} from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -249,13 +255,21 @@ function RootNavigator() {
       // Inicializar usuarios de demostración
       await initializeDemoUsers();
 
-      // Verificar si hay sesión activa
-      const user = await getCurrentUser();
-      setIsAuthenticated(!!user);
+      // Importar onAuthStateChanged de Firebase
+      const { onAuthStateChanged } = await import('firebase/auth');
+      const { auth } = await import('./config/firebaseConfig');
+
+      // Escuchar cambios en el estado de autenticación
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setIsAuthenticated(!!user);
+        setIsLoading(false);
+      });
+
+      // Cleanup cuando se desmonte el componente
+      return () => unsubscribe();
     } catch (error) {
       console.error("Error initializing app:", error);
       setIsAuthenticated(false);
-    } finally {
       setIsLoading(false);
     }
   };
